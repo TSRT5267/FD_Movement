@@ -1,6 +1,8 @@
 using UnityEngine;
 using UnityEngine.UIElements;
 
+using Cursor = UnityEngine.Cursor;
+
 public class CameraManager : MonoBehaviour
 {
     public Transform objectTofollow;
@@ -28,8 +30,8 @@ public class CameraManager : MonoBehaviour
         dirNormalized = realCamera.localPosition.normalized;
         finalDistance = realCamera.localPosition.magnitude;
 
-        UnityEngine.Cursor.lockState = CursorLockMode.Locked;
-        UnityEngine.Cursor.visible = false;
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
         
 
     }
