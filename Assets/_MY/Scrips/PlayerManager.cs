@@ -11,6 +11,7 @@ using Vector3 = UnityEngine.Vector3;
 using Input = UnityEngine.Input;
 using Quaternion = UnityEngine.Quaternion;
 using JetBrains.Annotations;
+using TMPro;
 
 
 public class PlayerManager : MonoBehaviour
@@ -73,6 +74,7 @@ public class PlayerManager : MonoBehaviour
     [Header("Grappling Hook")]
     [SerializeField] private LayerMask grapplingOBJ;
     [SerializeField] private GameObject aimOBJ;
+    [SerializeField] private Image crosshair;
     [SerializeField] private float  grapplingDis = 100.0f;
     [SerializeField] private float  grapplingDur = 5.0f;
     [SerializeField] private float  grapplingMaxAngle = 90.0f;
@@ -136,6 +138,9 @@ public class PlayerManager : MonoBehaviour
             isAim=false;
             camera.fieldOfView = Mathf.Lerp(camera.fieldOfView, 60.0f, Time.deltaTime * aimSpeed);// 비조준시 시야각 복구
         }
+
+        
+        
     }
 
     private void Move()
@@ -184,8 +189,8 @@ public class PlayerManager : MonoBehaviour
 
         // 이동
         speed = Mathf.Lerp(speed, targetSpeed, Time.deltaTime * 10);
-        //transform.Translate(moveDir * speed * SpeedMultiplier * Time.deltaTime, Space.World);       
-        rigidbody.linearVelocity = moveDir * speed* defaultSpeed * SpeedMultiplier * Time.deltaTime;
+        transform.Translate(moveDir * speed * SpeedMultiplier * Time.deltaTime, Space.World);       
+        
         
         
         // 회전
@@ -242,7 +247,7 @@ public class PlayerManager : MonoBehaviour
             {
                 if (!isGround) jumpCount++;
                 animator.SetTrigger("Jump");               
-                rigidbody.AddForce(new Vector3(0, jumpPower, 0));
+               rigidbody.AddForce(new Vector3(0, jumpPower, 0));               
                 lastJumpTime = Time.time; // 마지막 점프 시간 갱신
             }
             
@@ -322,6 +327,21 @@ public class PlayerManager : MonoBehaviour
         hookPos = animator.GetBoneTransform(HumanBodyBones.LeftIndexProximal).position;
         RaycastHit hit;
 
+        //그래플 적정거리시 크로스해서 색 변경
+        if (Physics.Raycast(camera.transform.position, camera.transform.forward, out hit, grapplingDis, grapplingOBJ))
+        {
+            Vector3 grapplingDir = transform.position - hit.point;
+            float angle = Vector3.Angle(transform.forward, grapplingDir);
+            if (angle > grapplingMaxAngle)
+            {
+                crosshair.color = Color.blue;
+            }
+            else
+            {
+                crosshair.color = Color.yellow;
+            }                     
+        }
+ 
         // E 키를 누를 때만 작동하도록 조건 분리
         if (Input.GetKeyDown(KeyCode.E))
         {
@@ -329,49 +349,57 @@ public class PlayerManager : MonoBehaviour
             {
                 if (Physics.Raycast(camera.transform.position, camera.transform.forward, out hit, grapplingDis, grapplingOBJ))
                 {
-                    //그래플 생성
-                    isGrappling = true;
-                    grapplingStartTime = Time.time;
-                    lineRenderer.positionCount = 2;
-                    lineRenderer.SetPosition(0, hookPos);
-                    lineRenderer.SetPosition(1, hit.point);
+                    Vector3 grapplingDir = transform.position - hit.point;
+                    float angle = Vector3.Angle(transform.forward, grapplingDir);
+                    if (angle > grapplingMaxAngle)
+                    {
+                        //그래플 생성
+                        isGrappling = true;
+                        grapplingStartTime = Time.time;
+                        lineRenderer.positionCount = 2;
+                        lineRenderer.SetPosition(0, hookPos);
+                        lineRenderer.SetPosition(1, hit.point);
 
-                    //그래플 생성 위치 강조
-                    aimOBJ.transform.position = hit.point; 
-                    aimOBJ.gameObject.SetActive(true);
+                        //그래플 생성 위치 강조
+                        aimOBJ.transform.position = hit.point;
+                        aimOBJ.gameObject.SetActive(true);
 
-                    //위로 작용하는 힘 추가
-                    rigidbody.AddForce(new Vector3(0, grapplingJumpPower, 0));
+                        //위로 작용하는 힘 추가
+                        rigidbody.AddForce(new Vector3(0, grapplingJumpPower, 0));
 
-                    //스프링 조인트 생성
-                    Spot = hit.point;
-                    springJoint = this.gameObject.AddComponent<SpringJoint>();
-                    springJoint.autoConfigureConnectedAnchor = false;
-                    springJoint.connectedAnchor = Spot;
+                        //스프링 조인트 생성
+                        Spot = hit.point;
+                        springJoint = this.gameObject.AddComponent<SpringJoint>();
+                        springJoint.autoConfigureConnectedAnchor = false;
+                        springJoint.connectedAnchor = Spot;
 
-                    float dis = Vector3.Distance(transform.position, Spot);                   
-                    springJoint.spring = spring;
-                    springJoint.damper = damper;
-                    springJoint.massScale = massScale;
+                        float dis = Vector3.Distance(transform.position, Spot);
+                        springJoint.spring = spring;
+                        springJoint.damper = damper;
+                        springJoint.massScale = massScale;
+                    }
+                    
+
+                    
                 }
                 
             }
             else // E 키 재입력시 그래플 해재
             {
                 isGrappling = false;
-                lineRenderer.positionCount = 0;  
+                lineRenderer.positionCount = 0;
                 Destroy(springJoint);
             }
         }
 
+        //그래플링
         if (isGrappling)
         {
             // 라인 렌더러 업데이트
             lineRenderer.SetPosition(0, hookPos);
-
-            // 그래플 지속시간 끝or 지정각도보다 커지면 그래플해재
             Vector3 grapplingDir = lineRenderer.GetPosition(1) - lineRenderer.GetPosition(0);
             float angle = Vector3.Angle(transform.forward, grapplingDir);
+
             if ((Time.time - grapplingStartTime > grapplingDur || angle > grapplingMaxAngle))
             {
                 isGrappling = false;
