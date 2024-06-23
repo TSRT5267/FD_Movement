@@ -29,9 +29,11 @@ public class PlayerManager : MonoBehaviour
 
     //이동
     [Header("Move")]
+    [SerializeField] private float      defaultSpeed = 50;      //기본 속도
     [SerializeField] private float      walkSpeed = 2;      //걷는속도
     [SerializeField] private float      runSpeed = 6;       //뛰는속도   
     [SerializeField] private float      rotationVelocity =10.0f; //회전 속력
+    private Vector3 moveDir = Vector3.zero;
     private float targetSpeed=0f; //목표 속도
     private float speed =0f; //현재 속도
 
@@ -46,26 +48,35 @@ public class PlayerManager : MonoBehaviour
     private bool    isGround = false;   //지면판정                                    
     private int     jumpCount = 0;          //접프횟수
 
+
+    private float SpeedMultiplier; // 가속
+    private float saveSpeed;// 구르기,슬라이드 행동시 속도 저장
+    private Vector3 saveDir; // 방향저장
+
     //구르기
     [Header("Roll")]
-    [SerializeField] private float SpeedMultiplier = 3.0f; // 구르기 중 속도 배수
-    [SerializeField] private float shortPressTime = 0.2f; // 짧은 누름 시간 임계값
-    private float rollSpeedMultiplier;
-    private float rollDuration = 1.0f; // 구르기 애니메이션 지속 시간
+    [SerializeField] private float rollMultiplier = 3.0f; // 구르기 중 속도 배수
+    [SerializeField] private float shortPressTime = 0.2f; // 짧은 누름 시간 임계값   
+    private float rollDuration = 1.1f; // 구르기 애니메이션 지속 시간
     private float rollTimer = 0.0f;
-    private float shiftPressStartTime;
+    private float shiftPressStartTime;  
     private bool  isRolling = false;
 
     //슬라이드
-
-
+    [Header("Slide")]
+    [SerializeField] private float slideMultiplier = 2.0f;   
+    private float slideDuration = 1.1f; // 슬라이드 애니메이션 지속 시간
+    private float slideTimer = 0.0f;
+    private bool isSlide = false;
 
     //그래플링 훅
     [Header("Grappling Hook")]
     [SerializeField] private LayerMask grapplingOBJ;
+    [SerializeField] private GameObject aimOBJ;
     [SerializeField] private float  grapplingDis = 100.0f;
     [SerializeField] private float  grapplingDur = 5.0f;
     [SerializeField] private float  grapplingMaxAngle = 90.0f;
+    [SerializeField] private float  grapplingJumpPower = 300.0f;
     [SerializeField] private float  spring = 5.0f;
     [SerializeField] private float  damper = 5.0f;
     [SerializeField] private float  massScale = 5.0f;
@@ -145,10 +156,11 @@ public class PlayerManager : MonoBehaviour
         cameraRight.Normalize();
 
         // 입력 방향을 카메라 기준으로 변환합니다.
-        Vector3 moveDir = cameraForward * inputDir.z + cameraRight * inputDir.x;
+        moveDir = cameraForward * inputDir.z + cameraRight * inputDir.x;
+        
 
         // 목표 속도 계산
-        if (Input.GetKey(KeyCode.LeftShift)&& !isRolling && !isAim) //달리기
+        if (Input.GetKey(KeyCode.LeftShift)&&  !isAim) //달리기
         {
             targetSpeed = runSpeed;
         }
@@ -161,11 +173,21 @@ public class PlayerManager : MonoBehaviour
              targetSpeed = 0;
         }
 
+        //구르기 슬라이드시 속도 위치 고정
+        if (isRolling || isSlide)
+        {
+            speed = saveSpeed;
+            moveDir = saveDir;
+        }
+
         if(speed < 0.01f ) speed = 0f;
 
         // 이동
         speed = Mathf.Lerp(speed, targetSpeed, Time.deltaTime * 10);
-        transform.Translate(moveDir * speed * rollSpeedMultiplier * Time.deltaTime, Space.World);
+        //transform.Translate(moveDir * speed * SpeedMultiplier * Time.deltaTime, Space.World);       
+        rigidbody.linearVelocity = moveDir * speed* defaultSpeed * SpeedMultiplier * Time.deltaTime;
+        
+        
         // 회전
         if (moveDir != Vector3.zero && !isAim)
         {          
@@ -184,14 +206,14 @@ public class PlayerManager : MonoBehaviour
         //레이캐스팅을 이용해 바닥인지 판정
         RaycastHit hit;
         isGround = Physics.Raycast(transform.position, Vector3.down, groundDis);
-        
+
 
         //지면접촉
         if (isGround)
         {
             jumpCount = 1;
             animator.SetBool("Grounded", true);
-           
+            
         }
         else
         {
@@ -219,8 +241,7 @@ public class PlayerManager : MonoBehaviour
             if (Time.time >= lastJumpTime + jumpCooldown) // 쿨타임 확인
             {
                 if (!isGround) jumpCount++;
-                animator.SetTrigger("Jump");
-                rigidbody.linearVelocity = new Vector3(rigidbody.linearVelocity.x, 0f, rigidbody.linearVelocity.z);
+                animator.SetTrigger("Jump");               
                 rigidbody.AddForce(new Vector3(0, jumpPower, 0));
                 lastJumpTime = Time.time; // 마지막 점프 시간 갱신
             }
@@ -247,21 +268,22 @@ public class PlayerManager : MonoBehaviour
                 isRolling = true;
                 rollTimer = 0.0f;
                 animator.SetTrigger("Roll");
-                
+                saveSpeed = speed;  //속도 저장
+                saveDir = moveDir;  //방향 저장
             }
         }
 
         //구르기
         if(isRolling)
         {
-            rollTimer += Time.deltaTime;                
-            rollSpeedMultiplier = SpeedMultiplier; //속도에 배속을 적용
+            rollTimer += Time.deltaTime;
+            SpeedMultiplier = rollMultiplier; //속도에 배속을 적용
             if (rollTimer >= rollDuration)
                 isRolling = false;
         }
         else
         {
-            rollSpeedMultiplier = 1.0f; //구르기가 끝난후 1배수로 복원
+            SpeedMultiplier = 1.0f; //구르기가 끝난후 1배수로 복원
         }
 
         
@@ -269,7 +291,30 @@ public class PlayerManager : MonoBehaviour
 
     private void slide()
     {
-        
+       
+        if (Input.GetKeyDown(KeyCode.C) && speed >= 4.0f)
+        {
+            isSlide = true;
+            slideTimer = 0.0f;
+            animator.SetTrigger("Slide");
+            saveSpeed = speed; //속도저장
+            saveDir = moveDir;  //방향 저장
+        }
+
+        if (isSlide)
+        {
+            slideTimer += Time.deltaTime;
+            SpeedMultiplier = slideMultiplier; //속도에 배속을 적용
+            if (slideTimer >= slideDuration)
+                isSlide = false;
+        }
+        else
+        {
+            SpeedMultiplier = 1.0f; //구르기가 끝난후 1배수로 복원
+        }
+
+
+
     }
 
     private void GrapplingHook()
@@ -291,8 +336,14 @@ public class PlayerManager : MonoBehaviour
                     lineRenderer.SetPosition(0, hookPos);
                     lineRenderer.SetPosition(1, hit.point);
 
-                    rigidbody.AddForce(new Vector3(0, jumpPower, 0));
+                    //그래플 생성 위치 강조
+                    aimOBJ.transform.position = hit.point; 
+                    aimOBJ.gameObject.SetActive(true);
 
+                    //위로 작용하는 힘 추가
+                    rigidbody.AddForce(new Vector3(0, grapplingJumpPower, 0));
+
+                    //스프링 조인트 생성
                     Spot = hit.point;
                     springJoint = this.gameObject.AddComponent<SpringJoint>();
                     springJoint.autoConfigureConnectedAnchor = false;
@@ -303,11 +354,12 @@ public class PlayerManager : MonoBehaviour
                     springJoint.damper = damper;
                     springJoint.massScale = massScale;
                 }
+                
             }
             else // E 키 재입력시 그래플 해재
             {
                 isGrappling = false;
-                lineRenderer.positionCount = 0;
+                lineRenderer.positionCount = 0;  
                 Destroy(springJoint);
             }
         }
@@ -323,11 +375,17 @@ public class PlayerManager : MonoBehaviour
             if ((Time.time - grapplingStartTime > grapplingDur || angle > grapplingMaxAngle))
             {
                 isGrappling = false;
-                lineRenderer.positionCount = 0;
+                lineRenderer.positionCount = 0;                
                 Destroy(springJoint);
             }
 
         }
+        else
+        {          
+            aimOBJ.gameObject.SetActive(false);
+        }
+
+        
     }
 
 
