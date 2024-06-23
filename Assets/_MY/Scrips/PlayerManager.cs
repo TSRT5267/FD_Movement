@@ -73,8 +73,7 @@ public class PlayerManager : MonoBehaviour
     //그래플링 훅
     [Header("Grappling Hook")]
     [SerializeField] private LayerMask grapplingOBJ;
-    [SerializeField] private GameObject aimOBJ;
-    [SerializeField] private Image crosshair;
+    [SerializeField] private GameObject aimOBJ;   
     [SerializeField] private float  grapplingDis = 100.0f;
     [SerializeField] private float  grapplingDur = 5.0f;
     [SerializeField] private float  grapplingMaxAngle = 90.0f;
@@ -325,31 +324,46 @@ public class PlayerManager : MonoBehaviour
     private void GrapplingHook()
     {
         hookPos = animator.GetBoneTransform(HumanBodyBones.LeftIndexProximal).position;
-        RaycastHit hit;
+        
+        //자동 조준점 계산
+        Vector3 realHitPoint = Vector3.zero;
 
-        //그래플 적정거리시 크로스해서 색 변경
-        if (Physics.Raycast(camera.transform.position, camera.transform.forward, out hit, grapplingDis, grapplingOBJ))
-        {
-            Vector3 grapplingDir = transform.position - hit.point;
-            float angle = Vector3.Angle(transform.forward, grapplingDir);
-            if (angle > grapplingMaxAngle)
-            {
-                crosshair.color = Color.blue;
-            }
-            else
-            {
-                crosshair.color = Color.yellow;
-            }                     
+        RaycastHit sphereCastHit;
+        Physics.SphereCast(camera.transform.position, 1.0f, camera.transform.forward,
+            out sphereCastHit, grapplingDis, grapplingOBJ);
+
+        RaycastHit rayCastHit;
+        Physics.Raycast(camera.transform.position, camera.transform.forward,
+            out rayCastHit, grapplingDis, grapplingOBJ);
+
+        if(rayCastHit.point != Vector3.zero) //정확한 조준
+            realHitPoint = rayCastHit.point;
+        else if(sphereCastHit.point != Vector3.zero) // 근처 조준
+            realHitPoint = sphereCastHit.point;  
+        else realHitPoint = Vector3.zero; // MISS
+
+        if(realHitPoint != Vector3.zero)
+        {           
+            aimOBJ.gameObject.SetActive(true);
+            if(!isGrappling) aimOBJ.transform.position = realHitPoint;
         }
- 
+        else
+        {
+            aimOBJ.gameObject.SetActive(false);
+        }
+
+        RaycastHit prediction = rayCastHit.point == Vector3.zero ? sphereCastHit : rayCastHit;
+
         // E 키를 누를 때만 작동하도록 조건 분리
         if (Input.GetKeyDown(KeyCode.E))
         {
+           
+
             if (!isGrappling)
             {
-                if (Physics.Raycast(camera.transform.position, camera.transform.forward, out hit, grapplingDis, grapplingOBJ))
-                {
-                    Vector3 grapplingDir = transform.position - hit.point;
+                
+                
+                    Vector3 grapplingDir = transform.position - prediction.point;
                     float angle = Vector3.Angle(transform.forward, grapplingDir);
                     if (angle > grapplingMaxAngle)
                     {
@@ -358,17 +372,16 @@ public class PlayerManager : MonoBehaviour
                         grapplingStartTime = Time.time;
                         lineRenderer.positionCount = 2;
                         lineRenderer.SetPosition(0, hookPos);
-                        lineRenderer.SetPosition(1, hit.point);
+                        lineRenderer.SetPosition(1, prediction.point);
 
-                        //그래플 생성 위치 강조
-                        aimOBJ.transform.position = hit.point;
-                        aimOBJ.gameObject.SetActive(true);
+                        Vector3 savePredictionPos = prediction.point;
+                        aimOBJ.transform.position = savePredictionPos;
 
                         //위로 작용하는 힘 추가
                         rigidbody.AddForce(new Vector3(0, grapplingJumpPower, 0));
 
                         //스프링 조인트 생성
-                        Spot = hit.point;
+                        Spot = prediction.point;
                         springJoint = this.gameObject.AddComponent<SpringJoint>();
                         springJoint.autoConfigureConnectedAnchor = false;
                         springJoint.connectedAnchor = Spot;
@@ -377,11 +390,12 @@ public class PlayerManager : MonoBehaviour
                         springJoint.spring = spring;
                         springJoint.damper = damper;
                         springJoint.massScale = massScale;
+                    
                     }
                     
 
                     
-                }
+                
                 
             }
             else // E 키 재입력시 그래플 해재
@@ -410,7 +424,7 @@ public class PlayerManager : MonoBehaviour
         }
         else
         {          
-            aimOBJ.gameObject.SetActive(false);
+            
         }
 
         
