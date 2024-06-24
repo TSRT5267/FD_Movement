@@ -305,6 +305,7 @@ public class PlayerManager : MonoBehaviour
             saveDir = moveDir;  //방향 저장
         }
 
+        //슬라이드
         if (isSlide)
         {
             slideTimer += Time.deltaTime;
@@ -314,7 +315,7 @@ public class PlayerManager : MonoBehaviour
         }
         else
         {
-            SpeedMultiplier = 1.0f; //구르기가 끝난후 1배수로 복원
+            SpeedMultiplier = 1.0f; //슬라이드가 끝난후 1배수로 복원
         }
 
 
@@ -325,7 +326,7 @@ public class PlayerManager : MonoBehaviour
     {
         hookPos = animator.GetBoneTransform(HumanBodyBones.LeftIndexProximal).position;
         
-        //자동 조준점 계산
+        //타겟팅 보정 
         Vector3 realHitPoint = Vector3.zero;
 
         RaycastHit sphereCastHit;
@@ -393,7 +394,7 @@ public class PlayerManager : MonoBehaviour
                     
                     }
                     
-
+                   
                     
                 
                 
